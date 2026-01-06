@@ -5,20 +5,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    ports:
-      - "8080:80"
+    container_name: code-challenge
     restart: unless-stopped
+    networks:
+      - app-network
 
-  # Development mode with hot reload
-  code-challenge-dev:
-    image: node:20-alpine
-    working_dir: /app
-    volumes:
-      - .:/app
-      - /app/node_modules
-    ports:
-      - "3000:3000"
-    command: sh -c "npm install && npm run dev"
-    profiles:
-      - dev
-
+networks:
+  app-network:
+    external: true
