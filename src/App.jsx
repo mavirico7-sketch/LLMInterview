@@ -40,84 +40,115 @@ if __name__ == "__main__":
     main()
 `
 
-const BASE_URL = "https://element.mavirico.xyz"
-const PYTHON_ID = 71
+const BASE_URL = "http://localhost:8000"
+
+// Вспомогательная функция для ожидания готовности сессии
+async function waitForSession(sessionId, maxAttempts = 30) {
+  for (let i = 0; i < maxAttempts; i++) {
+    const res = await fetch(`${BASE_URL}/api/v1/sessions/${sessionId}`)
+    const session = await res.json()
+    
+    if (session.status === 'ready') {
+      return session
+    }
+    if (session.status === 'error') {
+      throw new Error(session.error || 'Session creation failed')
+    }
+    await new Promise(r => setTimeout(r, 500))
+  }
+  throw new Error('Session creation timeout')
+}
 
 function App() {
   const [code, setCode] = useState(INITIAL_CODE)
   const [isRunning, setIsRunning] = useState(false)
   const [results, setResults] = useState(null)
   const [activeTab, setActiveTab] = useState('description')
+  const [sessionId, setSessionId] = useState(null)
 
   const runCode = useCallback(async () => {
     setIsRunning(true)
     setResults(null)
 
     const testResults = []
+    let currentSessionId = sessionId
 
-    for (const testCase of TASK.testCases) {
-      try {
-        // Создание submission
-        const payload = {
-          source_code: btoa(unescape(encodeURIComponent(code))),
-          language_id: PYTHON_ID,
-          stdin: btoa(testCase.input),
-        }
-
-        const response = await fetch(
-          `${BASE_URL}/submissions?base64_encoded=true&wait=false`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          }
-        )
-
-        const { token } = await response.json()
-
-        // Опрос результата
-        let result
-        while (true) {
-          const res = await fetch(`${BASE_URL}/submissions/${token}?base64_encoded=true`)
-          result = await res.json()
-          const status = result.status?.description
-
-          if (status !== "In Queue" && status !== "Processing") {
-            break
-          }
-          await new Promise(r => setTimeout(r, 1000))
-        }
-
-        const stdout = result.stdout ? decodeURIComponent(escape(atob(result.stdout))).trim() : ''
-        const stderr = result.stderr ? decodeURIComponent(escape(atob(result.stderr))).trim() : ''
-        const compileOutput = result.compile_output ? decodeURIComponent(escape(atob(result.compile_output))).trim() : ''
-
-        testResults.push({
-          input: testCase.input,
-          expected: testCase.expected,
-          actual: stdout,
-          stderr,
-          compileOutput,
-          passed: stdout === testCase.expected,
-          status: result.status?.description,
-          time: result.time,
-          memory: result.memory
+    try {
+      // Создание сессии, если её нет
+      if (!currentSessionId) {
+        const sessionRes = await fetch(`${BASE_URL}/api/v1/sessions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ environment: 'python' })
         })
-      } catch (error) {
-        testResults.push({
-          input: testCase.input,
-          expected: testCase.expected,
-          actual: '',
-          error: error.message,
-          passed: false,
-          status: 'Error'
-        })
+        const sessionData = await sessionRes.json()
+        currentSessionId = sessionData.session_id
+        setSessionId(currentSessionId)
+        
+        // Ожидание готовности сессии
+        await waitForSession(currentSessionId)
       }
+
+      // Выполнение тестов
+      for (const testCase of TASK.testCases) {
+        try {
+          const response = await fetch(
+            `${BASE_URL}/api/v1/sessions/${currentSessionId}/execute`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                code: code,
+                stdin: testCase.input,
+                filename: 'main.py'
+              })
+            }
+          )
+
+          const result = await response.json()
+          
+          const stdout = (result.stdout || '').trim()
+          const stderr = (result.stderr || '').trim()
+
+          testResults.push({
+            input: testCase.input,
+            expected: testCase.expected,
+            actual: stdout,
+            stderr,
+            compileOutput: '',
+            passed: stdout === testCase.expected,
+            status: result.status === 'completed' ? 'Accepted' : result.status,
+            time: result.execution_time,
+            memory: null
+          })
+        } catch (error) {
+          testResults.push({
+            input: testCase.input,
+            expected: testCase.expected,
+            actual: '',
+            error: error.message,
+            passed: false,
+            status: 'Error'
+          })
+        }
+      }
+    } catch (error) {
+      // Ошибка при создании/ожидании сессии
+      testResults.push({
+        input: '',
+        expected: '',
+        actual: '',
+        error: error.message,
+        passed: false,
+        status: 'Session Error'
+      })
+      // Сбрасываем сессию при ошибке
+      setSessionId(null)
     }
 
     setResults(testResults)
     setIsRunning(false)
-  }, [code])
+  }, [code, sessionId])
 
   const passedCount = results?.filter(r => r.passed).length || 0
   const totalCount = results?.length || 0

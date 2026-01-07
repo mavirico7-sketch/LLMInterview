@@ -1,12 +1,12 @@
 # Code Challenge Platform
 
-Веб-приложение для решения задач по программированию с Monaco Editor и проверкой через Judge0.
+Веб-приложение для решения задач по программированию с Monaco Editor и проверкой через Code Executor.
 
 ## Возможности
 
 - 🎨 Современный темный интерфейс
 - 📝 Monaco Editor с подсветкой синтаксиса Python
-- ⚡ Выполнение кода через Judge0 API
+- ⚡ Выполнение кода через Code Executor API
 - ✅ Автоматическая проверка решений
 - 📊 Детальные результаты тестов
 
@@ -48,7 +48,7 @@ npm run preview
 - Vite
 - Monaco Editor
 - Lucide Icons
-- Judge0 API
+- Code Executor API
 
 ## Структура проекта
 
@@ -67,7 +67,40 @@ code-challenge/
 
 ## API
 
-Приложение использует Judge0 API по адресу `https://element.mavirico.xyz`.
+Приложение использует Code Executor API по адресу `http://localhost:8000`.
+
+### Endpoints
+
+- `POST /api/v1/sessions` - создание сессии выполнения
+- `GET /api/v1/sessions/{session_id}` - получение статуса сессии
+- `POST /api/v1/sessions/{session_id}/execute` - выполнение кода
+- `DELETE /api/v1/sessions/{session_id}` - завершение сессии
+
+### Пример использования
+
+```javascript
+// Создание сессии
+const sessionRes = await fetch('http://localhost:8000/api/v1/sessions', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ environment: 'python' })
+})
+const { session_id } = await sessionRes.json()
+
+// Ожидание готовности сессии
+// ...polling GET /api/v1/sessions/{session_id} до status: 'ready'
+
+// Выполнение кода
+const result = await fetch(`http://localhost:8000/api/v1/sessions/${session_id}/execute`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    code: 'print("Hello, World!")',
+    stdin: '',
+    filename: 'main.py'
+  })
+})
+const { stdout, stderr, exit_code, execution_time } = await result.json()
+```
 
 Для изменения адреса сервера отредактируйте константу `BASE_URL` в `src/App.jsx`.
-
