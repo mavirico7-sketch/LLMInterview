@@ -40,7 +40,7 @@ if __name__ == "__main__":
     main()
 `
 
-const BASE_URL = "http://localhost:8000"
+const BASE_URL = ""
 
 // Вспомогательная функция для ожидания готовности сессии
 async function waitForSession(sessionId, maxAttempts = 30) {

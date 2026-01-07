@@ -12,13 +12,27 @@
 
 ## Запуск
 
+### Предварительные требования
+
+1. Запустите Code Executor (из папки `code-executor`):
+```bash
+cd ../code-executor
+./scripts/build-environments.sh
+docker compose up -d
+```
+
+2. Создайте общую сеть (если ещё не создана):
+```bash
+docker network create app-network
+```
+
 ### Docker (рекомендуется)
 
 **Production mode:**
 ```bash
 docker-compose up --build
 ```
-Приложение будет доступно на http://localhost:8080
+Приложение будет доступно на http://localhost:3080
 
 **Development mode с hot reload:**
 ```bash
@@ -67,7 +81,9 @@ code-challenge/
 
 ## API
 
-Приложение использует Code Executor API по адресу `http://localhost:8000`.
+Приложение использует Code Executor API через nginx proxy на `/api/`.
+
+В Docker контейнере запросы проксируются к сервису `api:8000` (Code Executor) через общую сеть `app-network`.
 
 ### Endpoints
 
