@@ -7,9 +7,12 @@ services:
       dockerfile: Dockerfile
     container_name: code-challenge
     restart: unless-stopped
+    ports:
+      - "3080:3080"
     networks:
       - app-network
 
 networks:
   app-network:
     external: true
+    name: app-network
